@@ -5,7 +5,6 @@
 #include <iostream>
 #include "scene.h"
 
-
 Eigen::MatrixXd V;
 Eigen::MatrixXi F;
 igl::opengl::glfw::Viewer mgpViewer;
@@ -15,6 +14,9 @@ float currTime = 0;
 //initial values
 float timeStep = 0.02;
 float CRCoeff= 1.0;
+
+string SCENE_FILE = "testscene.txt";
+string SCENE_PATH = "..\data";
 
 Scene scene;
 
@@ -115,12 +117,12 @@ int main(int argc, char *argv[])
   
   
   // Load scene
-  if (argc<3){
+  /*if (argc<3){
     cout<<"Please provide path (argument 1 and name of scene file (argument 2)!"<<endl;
     return 0;
-  }
-  cout<<"scene file: "<<std::string(argv[2])<<endl;
-  scene.loadScene(std::string(argv[1]),std::string(argv[2]));
+  }*/
+  cout<<"scene file: "<< SCENE_FILE <<endl;
+  scene.loadScene( SCENE_PATH , SCENE_FILE);
   
   //create platform
   MatrixXd platV;
