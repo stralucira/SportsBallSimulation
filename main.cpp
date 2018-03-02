@@ -13,7 +13,7 @@ float currTime = 0;
 
 //initial values
 float timeStep = 0.02;
-float CRCoeff= 1.0;
+float CRCoeff = 1.0;
 
 string SCENE_FILE = "stressscene.txt";
 string SCENE_PATH = "../data";
@@ -100,6 +100,8 @@ class CustomMenu : public igl::opengl::glfw::imgui::ImGuiMenu
     {
       ImGui::InputFloat("CR Coeff",&CRCoeff,0,0,3);
       
+	  ImGui::SliderFloat("Gravity", &GRAVITY, 0.0f, 30.0f, "%.3f");
+	  
       
       if (ImGui::InputFloat("Time Step", &timeStep)) {
         mgpViewer.core.animation_max_fps = (((int)1.0/timeStep));
@@ -132,7 +134,7 @@ int main(int argc, char *argv[])
   createPlatform(platV, platF, platCOM, platOrientation);
   
   scene.addRigidObject(platV, platF, 10000.0, true, platCOM, platOrientation);
-  scene.updateScene(0.0, CRCoeff, V,F);
+  scene.updateScene(0.0, CRCoeff, V , F);
   
   // Viewer Settings
   mgpViewer.data().set_mesh(V,F);

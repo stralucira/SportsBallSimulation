@@ -17,12 +17,10 @@ void support(const void *_obj, const ccd_vec3_t *_d, ccd_vec3_t *_p);
 void stub_dir(const void *obj1, const void *obj2, ccd_vec3_t *dir);
 void center(const void *_obj, ccd_vec3_t *dir);
 
-
+float GRAVITY = 9.807;
 
 //Impulse is defined as a pair <position, direction>
 typedef std::pair<RowVector3d,RowVector3d> Impulse;
-
-float GRAVITY = 9.807;
 
 //the class the contains each individual rigid objects and their functionality
 class RigidObject{
@@ -234,7 +232,6 @@ public:
   int numFullV, numFullT;
   std::vector<RigidObject> rigidObjects;
   
-  
   //adding an objects. You do not need to update this generally
   void addRigidObject(const MatrixXd& V, const MatrixXi& T, const double density, const bool isFixed, const RowVector3d& COM, const RowVector4d orientation){
     
@@ -261,7 +258,7 @@ public:
      ***************/
 
 	RowVector3d velocity_component = (ro1.comVelocity - ro2.comVelocity).dot(contactNormal) * contactNormal;
-	double inv_joint_masses = 1/ ((1 / ro1.mass) + (1 / ro2.mass)); 
+	double inv_joint_masses = 1/((1 / ro1.mass) + (1 / ro2.mass)); 
 	RowVector3d impulse_magnitude = -1*(1 + CRCoeff) * velocity_component * inv_joint_masses ; 
 
 
