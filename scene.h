@@ -127,20 +127,12 @@ public:
 
 	  // Loop over all the vertices of the rigid body, and update positions.
 	  for (int i = 0; i < currV.rows(); i++) {
-		  
-		  
-		  /*currV(i, 0) += 0;
-		  currV(i, 1) += -1;
-		  currV(i, 2) += 0;*/
-
 		  currV(i, 0) += comVelocity(0, 0) * timeStep;
 		  currV(i, 1) += comVelocity(0, 1) * timeStep;
 		  currV(i, 2) += comVelocity(0, 2) * timeStep;
-		  
-		  /*cout << "X:" << currV(i, 0) << "\n";
-		  cout << "Y:" << currV(i, 1) << "\n";
-		  cout << "Z:" << currV(i, 2) << "\n";*/
 	  }
+
+	  COM += comVelocity * timeStep;
 
   }
   
@@ -256,20 +248,51 @@ public:
     /***************
      TODO
      ***************/
+	RowVector3d collisionDirection;
+	
 
-	RowVector3d velocity_component = (ro1.comVelocity - ro2.comVelocity).dot(contactNormal) * contactNormal;
-	double inv_joint_masses = 1/((1 / ro1.mass) + (1 / ro2.mass)); 
-	RowVector3d impulse_magnitude = -1*(1 + CRCoeff) * velocity_component * inv_joint_masses ; 
+	// If both objects are free
+	if (!(ro1.isFixed || ro2.isFixed)) {
+		// Do smth
+	}
 
+	// If one object is fixed 
+	else if (ro1.isFixed) {
+		collisionDirection = ro2.comVelocity.normalized();
 
-	ro1.impulses.push_back(Impulse(contactPosition, impulse_magnitude));
-	ro2.impulses.push_back(Impulse(contactPosition, -impulse_magnitude));
-    
+		for (int i = 0; i < ro2.currV.rows(); i++) {
+			ro2.currV(i, 0) -= collisionDirection(0, 0) * depth;
+			ro2.currV(i, 1) -= collisionDirection(0, 1) * depth;
+			ro2.currV(i, 2) -= collisionDirection(0, 2) * depth;
+		}
+		ro2.COM -= collisionDirection * depth;
+	}
+
+	else if (ro2.isFixed) {
+		collisionDirection = ro1.comVelocity.normalized();
+
+		for (int i = 0; i < ro1.currV.rows(); i++) {
+			ro1.currV(i, 0) -= collisionDirection(0, 0) * depth;
+			ro1.currV(i, 1) -= collisionDirection(0, 1) * depth;
+			ro1.currV(i, 2) -= collisionDirection(0, 2) * depth;
+		}
+		ro1.COM -= collisionDirection * depth;
+	}
+	 
+
+	
     //Create impulses and push them into ro1.impulses and ro2.impulses.
     
     /***************
      TODO
      ***************/
+	RowVector3d velocity_component = (ro1.comVelocity - ro2.comVelocity).dot(contactNormal) * contactNormal;
+	double inv_joint_masses = 1 / ((1 / ro1.mass) + (1 / ro2.mass));
+	RowVector3d impulse_magnitude = -1 * (1 + CRCoeff) * velocity_component * inv_joint_masses;
+
+
+	ro1.impulses.push_back(Impulse(contactPosition, impulse_magnitude));
+	ro2.impulses.push_back(Impulse(contactPosition, -impulse_magnitude));
     
     //updating velocities according to impulses
     ro1.updateImpulseVelocities();
