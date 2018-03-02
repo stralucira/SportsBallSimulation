@@ -22,6 +22,7 @@ void center(const void *_obj, ccd_vec3_t *dir);
 //Impulse is defined as a pair <position, direction>
 typedef std::pair<RowVector3d,RowVector3d> Impulse;
 
+float GRAVITY = 9.807;
 
 //the class the contains each individual rigid objects and their functionality
 class RigidObject{
@@ -109,10 +110,12 @@ public:
   
   //return the current inverted inertia tensor around the current COM. Update it by applying the orientation
   Matrix3d getCurrInvInertiaTensor(){
-    Matrix3d R;
+	  Matrix3d R;
     /***************
      TODO
      ***************/
+
+	
     return R;
   }
   
@@ -123,6 +126,24 @@ public:
     /***************
      TODO
      ***************/
+
+	  // Loop over all the vertices of the rigid body, and update positions.
+	  for (int i = 0; i < currV.rows(); i++) {
+		  
+		  
+		  /*currV(i, 0) += 0;
+		  currV(i, 1) += -1;
+		  currV(i, 2) += 0;*/
+
+		  currV(i, 0) += comVelocity(0, 0) * timeStep;
+		  currV(i, 1) += comVelocity(0, 1) * timeStep;
+		  currV(i, 2) += comVelocity(0, 2) * timeStep;
+		  
+		  /*cout << "X:" << currV(i, 0) << "\n";
+		  cout << "Y:" << currV(i, 1) << "\n";
+		  cout << "Z:" << currV(i, 2) << "\n";*/
+	  }
+
   }
   
   
@@ -158,14 +179,20 @@ public:
     /***************
      TODO
      ***************/
+
+	comVelocity(0, 1) += -GRAVITY*timeStep;
+
   }
   
   
   //the full integration for the time step (velocity + position)
   //You need to modify this if you are changing the integration
   void integrate(double timeStep){
+
+	  
     updateVelocity(timeStep);
     updatePosition(timeStep);
+  
   }
   
   

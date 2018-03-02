@@ -15,8 +15,8 @@ float currTime = 0;
 float timeStep = 0.02;
 float CRCoeff= 1.0;
 
-string SCENE_FILE = "testscene.txt";
-string SCENE_PATH = "..\data";
+string SCENE_FILE = "stressscene.txt";
+string SCENE_PATH = "../data";
 
 Scene scene;
 
