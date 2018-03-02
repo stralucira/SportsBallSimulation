@@ -164,6 +164,8 @@ public:
        TODO
        ***************/
       
+		comVelocity += impulses[i].second * (1 / mass);
+
     }
     impulses.clear();
   }
@@ -253,11 +255,18 @@ public:
   void handleCollision(RigidObject& ro1, RigidObject& ro2, const double depth, const RowVector3d& contactNormal, const RowVector3d& penPosition, const double CRCoeff){
     
     //Interpretation resolution: move each object by inverse mass weighting, unless either is fixed, and then move the other. Remember to respect the direction of contactNormal and update penPosition accordingly.
-    RowVector3d contactPosition;
+    RowVector3d contactPosition = penPosition + depth*contactNormal;
     /***************
      TODO
      ***************/
-    
+
+	RowVector3d velocity_component = (ro1.comVelocity - ro2.comVelocity).dot(contactNormal) * contactNormal;
+	double inv_joint_masses = 1/ ((1 / ro1.mass) + (1 / ro2.mass)); 
+	RowVector3d impulse_magnitude = -1*(1 + CRCoeff) * velocity_component * inv_joint_masses ; 
+
+
+	ro1.impulses.push_back(Impulse(contactPosition, impulse_magnitude));
+	ro2.impulses.push_back(Impulse(contactPosition, -impulse_magnitude));
     
     //Create impulses and push them into ro1.impulses and ro2.impulses.
     
@@ -294,7 +303,7 @@ public:
     for (int i=0;i<rigidObjects.size();i++)
       for (int j=i+1;j<rigidObjects.size();j++)
         if (rigidObjects[i].isCollide(rigidObjects[j],depth, contactNormal, penPosition))
-          handleCollision(rigidObjects[i], rigidObjects[j],depth, contactNormal.normalized(), penPosition,CRCoeff);
+          handleCollision(rigidObjects[i], rigidObjects[j],depth, contactNormal.normalized(), penPosition, CRCoeff);
     
     
     
