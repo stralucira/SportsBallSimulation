@@ -108,13 +108,8 @@ public:
   
   //return the current inverted inertia tensor around the current COM. Update it by applying the orientation
   Matrix3d getCurrInvInertiaTensor(){
-	  Matrix3d R;
-    /***************
-     TODO
-     ***************/
-
 	
-    return R;
+	return Q2RotMatrix(orientation) * invIT;
   }
   
   
@@ -122,18 +117,14 @@ public:
   //You need to modify this according to its purpose
   void updatePosition(double timeStep){
     /***************
-     TODO
+     TODO 
      ***************/
-
 	  // Loop over all the vertices of the rigid body, and update positions.
 	  for (int i = 0; i < currV.rows(); i++) {
 		  currV(i, 0) += comVelocity(0, 0) * timeStep;
 		  currV(i, 1) += comVelocity(0, 1) * timeStep;
 		  currV(i, 2) += comVelocity(0, 2) * timeStep;
 	  }
-
-	  COM += comVelocity * timeStep;
-
   }
   
   
@@ -153,7 +144,6 @@ public:
       /***************
        TODO
        ***************/
-      
 		comVelocity += impulses[i].second * (1 / mass);
 
     }
@@ -174,17 +164,21 @@ public:
 
 	comVelocity(0, 1) += -GRAVITY*timeStep;
 
+	//Quaternion<double,0> q(orientation(0,0), orientation(0, 1), orientation(0, 2), orientation(0, 3));
+	//Quaternion<double, 0> p(orientation);
+
+	//q = q + Quaterniond(0, angVelocity(0, 1), angVelocity(0, 2), angVelocity(0, 3)) * p;
+
+
   }
   
   
   //the full integration for the time step (velocity + position)
   //You need to modify this if you are changing the integration
   void integrate(double timeStep){
-
-	  
     updateVelocity(timeStep);
     updatePosition(timeStep);
-  
+
   }
   
   
@@ -249,15 +243,37 @@ public:
      TODO
      ***************/
 	RowVector3d collisionDirection;
+	RowVector3d collisionDirection2;
 	
+	double invJointMass;
+
+	double ro2Depth;
+	double ro1Depth;
 
 	// If both objects are free
 	if (!(ro1.isFixed || ro2.isFixed)) {
-		// Do smth
+		collisionDirection2 = ro2.comVelocity.normalized();
+		collisionDirection = ro1.comVelocity.normalized();
+
+		invJointMass = 1 / (ro1.mass + ro2.mass);
+
+		for (int i = 0; i < ro2.currV.rows(); i++) {
+			ro2Depth = depth * ro2.mass * invJointMass;
+			ro2.currV(i, 0) -= collisionDirection2(0, 0) * ro2Depth;
+			ro2.currV(i, 1) -= collisionDirection2(0, 1) * ro2Depth;
+			ro2.currV(i, 2) -= collisionDirection2(0, 2) * ro2Depth;
+		}
+
+		for (int i = 0; i < ro1.currV.rows(); i++) {
+			ro1Depth = depth * ro1.mass * invJointMass;
+			ro1.currV(i, 0) -= collisionDirection(0, 0) * ro1Depth;
+			ro1.currV(i, 1) -= collisionDirection(0, 1) * ro1Depth;
+			ro1.currV(i, 2) -= collisionDirection(0, 2) * ro1Depth;
+		}
 	}
 
 	// If one object is fixed 
-	else if (ro1.isFixed) {
+	if (ro1.isFixed) {
 		collisionDirection = ro2.comVelocity.normalized();
 
 		for (int i = 0; i < ro2.currV.rows(); i++) {
@@ -265,7 +281,6 @@ public:
 			ro2.currV(i, 1) -= collisionDirection(0, 1) * depth;
 			ro2.currV(i, 2) -= collisionDirection(0, 2) * depth;
 		}
-		ro2.COM -= collisionDirection * depth;
 	}
 
 	else if (ro2.isFixed) {
@@ -276,7 +291,6 @@ public:
 			ro1.currV(i, 1) -= collisionDirection(0, 1) * depth;
 			ro1.currV(i, 2) -= collisionDirection(0, 2) * depth;
 		}
-		ro1.COM -= collisionDirection * depth;
 	}
 	 
 
