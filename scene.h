@@ -119,20 +119,12 @@ public:
     /***************
      TODO 
      ***************/
-	  // Loop over all the vertices of the rigid body, and update positions
+	  // Loop over all the vertices of the rigid body, and update positions.
 	  for (int i = 0; i < currV.rows(); i++) {
 		  currV(i, 0) += comVelocity(0, 0) * timeStep;
 		  currV(i, 1) += comVelocity(0, 1) * timeStep;
 		  currV(i, 2) += comVelocity(0, 2) * timeStep;
 	  }
-
-	  /*orientation(0, 0);
-	  orientation(0, 1) += (0.5 * timeStep) * angVelocity(0, 0) * orientation(0, 1);
-	  orientation(0, 2) += (0.5 * timeStep) * angVelocity(0, 1) * orientation(0, 2);
-	  orientation(0, 3) += (0.5 * timeStep) * angVelocity(0, 2) * orientation(0, 3);
-	  
-	  orientation.normalize();*/
-
   }
   
   
@@ -153,11 +145,11 @@ public:
        TODO
        ***************/
 		comVelocity += impulses[i].second * (1 / mass);
-		RowVector3d s = impulses[i].second.transpose(); 
+		RowVector3d s = impulses[i].second.transpose();
 
 		angVelocity += invIT * arm.transpose().cross(s);
-    }
 
+    }
     impulses.clear();
   }
   
@@ -178,8 +170,9 @@ public:
 	//Quaternion<double,0> q(orientation(0,0), orientation(0, 1), orientation(0, 2), orientation(0, 3));
 	//Quaternion<double, 0> p(orientation);
 
-	
- 
+	//q = q + Quaterniond(0, angVelocity(0, 1), angVelocity(0, 2), angVelocity(0, 3)) * p;
+
+
   }
   
   
@@ -317,6 +310,7 @@ public:
 	RowVector3d arm1 = contactPosition - ro1.COM;
 	RowVector3d arm2 = contactPosition - ro2.COM;
 
+
 	ro1.impulses.push_back(Impulse(contactPosition, impulse_magnitude));
 	ro2.impulses.push_back(Impulse(contactPosition, -impulse_magnitude));
     
@@ -339,15 +333,8 @@ public:
     int currVIndex=0, currFIndex=0;
     
     //integrating velocity, position and orientation from forces and previous states
-	for (int i = 0; i < rigidObjects.size(); i++) {
-		if (i = 5) {
-			rigidObjects[i].integrate(timeStep);
-		}
-		else if (i != 5) {
-			rigidObjects[i].integrate(timeStep);
-		}
-	}
-     
+    for (int i=0;i<rigidObjects.size();i++)
+      rigidObjects[i].integrate(timeStep);
     
     //detecting and handling collisions when found
     //This is done exhaustively: checking every two objects in the scene.
