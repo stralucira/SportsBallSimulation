@@ -108,7 +108,9 @@ public:
   
   //return the current inverted inertia tensor around the current COM. Update it by applying the orientation
   Matrix3d getCurrInvInertiaTensor(){
-	
+	  
+	 orientation.normalize();
+
 	return Q2RotMatrix(orientation).transpose() * invIT * Q2RotMatrix(orientation);
   }
   
@@ -116,9 +118,6 @@ public:
   //Update the current position and orientation by integrating the linear and angular velocities, and update currV accordingly
   //You need to modify this according to its purpose
   void updatePosition(double timeStep){
-    /***************
-     TODO 
-     ***************/
 
 	  Quaternion<double> q = Quaternion<double>(orientation(0, 0), orientation(0, 1), orientation(0, 2), orientation(0, 3));
 	  Quaternion<double> aV = Quaternion<double>(0, angVelocity(0, 0), angVelocity(0, 1), angVelocity(0, 2));
@@ -131,9 +130,9 @@ public:
 	  orientation(0, 1) += (0.5 * timeStep) * mult.y();
 	  orientation(0, 2) += (0.5 * timeStep) * mult.z();
 	  orientation(0, 3) += (0.5 * timeStep) * mult.w();
-	  orientation.normalize();
-	 
 
+	  orientation.normalize();
+	
 	  COM += comVelocity * timeStep;
 	  
 	  for (int i = 0; i < currV.rows(); i++) {
@@ -156,11 +155,8 @@ public:
     
     //update linear and angular velocity according to all impulses
     for (int i=0;i<impulses.size();i++){
-      /***************
-       TODO
-       ***************/
+
 		comVelocity += impulses[i].second * (1 / mass);
-		RowVector3d s = impulses[i].second;
 
 		angVelocity += getCurrInvInertiaTensor() * impulses[i].second.transpose().cross(arm.transpose());
     }
@@ -174,10 +170,6 @@ public:
     
     if (isFixed)
       return;
-    
-    /***************
-     TODO
-     ***************/
 
 	comVelocity(0, 1) += -GRAVITY*timeStep;
 
@@ -298,17 +290,19 @@ public:
 	}
 	 
     //Create impulses and push them into ro1.impulses and ro2.impulses.
-    
-    /***************
-     TODO
-     ***************/
-	RowVector3d velocity_component = (ro1.comVelocity - ro2.comVelocity).dot(contactNormal) * contactNormal;
-	double inv_joint_masses = 1 / ((1 / ro1.mass) + (1 / ro2.mass));
-	RowVector3d impulse_magnitude = -1 * (1 + CRCoeff) * velocity_component * inv_joint_masses;
 
 	RowVector3d arm1 = contactPosition - ro1.COM;
 	RowVector3d arm2 = contactPosition - ro2.COM;
 
+	RowVector3d acn1 = arm1.cross(contactNormal);
+	RowVector3d acn2 = arm2.cross(contactNormal);
+
+	double a = acn1 * ro1.getCurrInvInertiaTensor() * acn1.transpose();
+	double b = acn2 * ro2.getCurrInvInertiaTensor() * acn2.transpose();
+
+	RowVector3d velocity_component = (ro1.comVelocity - ro2.comVelocity).dot(contactNormal) * contactNormal;
+	double inv_joint_masses = 1 / ((1 / ro1.mass) + (1 / ro2.mass));
+	RowVector3d impulse_magnitude = -1 * (1 + CRCoeff) * velocity_component * ( inv_joint_masses + a + b );
 
 	ro1.impulses.push_back(Impulse(contactPosition, impulse_magnitude));
 	ro2.impulses.push_back(Impulse(contactPosition, -impulse_magnitude));

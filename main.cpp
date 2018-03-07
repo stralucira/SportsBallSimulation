@@ -98,12 +98,11 @@ class CustomMenu : public igl::opengl::glfw::imgui::ImGuiMenu
     // Add new group
     if (ImGui::CollapsingHeader("Algorithm Options", ImGuiTreeNodeFlags_DefaultOpen))
     {
-      ImGui::InputFloat("CR Coeff",&CRCoeff,0,0,3);
+      ImGui::SliderFloat("CR Coeff",&CRCoeff,0.0f,10.0f,"%.3f");
       
 	  ImGui::SliderFloat("Gravity", &GRAVITY, 0.0f, 30.0f, "%.3f");
-	  
       
-      if (ImGui::InputFloat("Time Step", &timeStep)) {
+      if (ImGui::SliderFloat("Time Step", &timeStep, 0.05f, 0.0f, "%.3f")) {
         mgpViewer.core.animation_max_fps = (((int)1.0/timeStep));
       }
     }
