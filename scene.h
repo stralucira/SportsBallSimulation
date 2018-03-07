@@ -119,12 +119,26 @@ public:
     /***************
      TODO 
      ***************/
-	  // Loop over all the vertices of the rigid body, and update positions.
+
+	  Quaternion<double> q = Quaternion<double>(orientation(0, 0), orientation(0, 1), orientation(0, 2), orientation(0, 3));
+	  Quaternion<double> aV = Quaternion<double>(0, angVelocity(0, 0), angVelocity(0, 1), angVelocity(0, 2));
+
+	  Quaternion<double> mult = aV * q;
+	  q = mult;
+
+	  orientation(0, 0) += (0.5 * timeStep) * q.x();
+	  orientation(0, 1) += (0.5 * timeStep) * q.y();
+	  orientation(0, 2) += (0.5 * timeStep) * q.z();
+	  orientation(0, 3) += (0.5 * timeStep) * q.w();
+	  orientation.normalize();
+	 
+
+	  COM += comVelocity * timeStep;
+	  
 	  for (int i = 0; i < currV.rows(); i++) {
-		  currV(i, 0) += comVelocity(0, 0) * timeStep;
-		  currV(i, 1) += comVelocity(0, 1) * timeStep;
-		  currV(i, 2) += comVelocity(0, 2) * timeStep;
+		  currV.row(i) = QRot(origV.row(i), orientation) + COM; 
 	  }
+	  
   }
   
   
@@ -145,10 +159,9 @@ public:
        TODO
        ***************/
 		comVelocity += impulses[i].second * (1 / mass);
-		RowVector3d s = impulses[i].second.transpose();
+		RowVector3d s = impulses[i].second;
 
-		angVelocity += invIT * arm.transpose().cross(s);
-
+		angVelocity += getCurrInvInertiaTensor() * impulses[i].second.transpose().cross(arm.transpose());
     }
     impulses.clear();
   }
@@ -167,12 +180,6 @@ public:
 
 	comVelocity(0, 1) += -GRAVITY*timeStep;
 
-	//Quaternion<double,0> q(orientation(0,0), orientation(0, 1), orientation(0, 2), orientation(0, 3));
-	//Quaternion<double, 0> p(orientation);
-
-	//q = q + Quaterniond(0, angVelocity(0, 1), angVelocity(0, 2), angVelocity(0, 3)) * p;
-
-
   }
   
   
@@ -181,7 +188,6 @@ public:
   void integrate(double timeStep){
     updateVelocity(timeStep);
     updatePosition(timeStep);
-
   }
   
   
