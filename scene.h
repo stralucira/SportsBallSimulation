@@ -124,12 +124,13 @@ public:
 	  Quaternion<double> aV = Quaternion<double>(0, angVelocity(0, 0), angVelocity(0, 1), angVelocity(0, 2));
 
 	  Quaternion<double> mult = aV * q;
-	  q = mult;
 
-	  orientation(0, 0) += (0.5 * timeStep) * q.x();
-	  orientation(0, 1) += (0.5 * timeStep) * q.y();
-	  orientation(0, 2) += (0.5 * timeStep) * q.z();
-	  orientation(0, 3) += (0.5 * timeStep) * q.w();
+	  orientation.normalize();
+
+	  orientation(0, 0) += (0.5 * timeStep) * mult.x();
+	  orientation(0, 1) += (0.5 * timeStep) * mult.y();
+	  orientation(0, 2) += (0.5 * timeStep) * mult.z();
+	  orientation(0, 3) += (0.5 * timeStep) * mult.w();
 	  orientation.normalize();
 	 
 
@@ -246,11 +247,9 @@ public:
    *********************************************************************/
   void handleCollision(RigidObject& ro1, RigidObject& ro2, const double depth, const RowVector3d& contactNormal, const RowVector3d& penPosition, const double CRCoeff){
     
-    //Interpretation resolution: move each object by inverse mass weighting, unless either is fixed, and then move the other. Remember to respect the direction of contactNormal and update penPosition accordingly.
+    // Interpretation resolution: move each object by inverse mass weighting, unless either is fixed, and then move the other. Remember to respect the direction of contactNormal and update penPosition accordingly.
     RowVector3d contactPosition = penPosition + depth*contactNormal;
-    /***************
-     TODO
-     ***************/
+    
 	RowVector3d collisionDirection;
 	RowVector3d collisionDirection2;
 	
@@ -266,19 +265,17 @@ public:
 
 		invJointMass = 1 / (ro1.mass + ro2.mass);
 
+		ro2Depth = depth * ro2.mass * invJointMass;
 		for (int i = 0; i < ro2.currV.rows(); i++) {
-			ro2Depth = depth * ro2.mass * invJointMass;
-			ro2.currV(i, 0) -= collisionDirection2(0, 0) * ro2Depth;
-			ro2.currV(i, 1) -= collisionDirection2(0, 1) * ro2Depth;
-			ro2.currV(i, 2) -= collisionDirection2(0, 2) * ro2Depth;
+			ro2.currV(i) -= collisionDirection2(0) * ro2Depth;
 		}
-
+		ro2.COM -= collisionDirection2 * ro2Depth;
+		
+		ro1Depth = depth * ro1.mass * invJointMass;
 		for (int i = 0; i < ro1.currV.rows(); i++) {
-			ro1Depth = depth * ro1.mass * invJointMass;
-			ro1.currV(i, 0) -= collisionDirection(0, 0) * ro1Depth;
-			ro1.currV(i, 1) -= collisionDirection(0, 1) * ro1Depth;
-			ro1.currV(i, 2) -= collisionDirection(0, 2) * ro1Depth;
+			ro1.currV(i) -= collisionDirection(0) * ro1Depth;
 		}
+		ro1.COM -= collisionDirection * ro1Depth;
 	}
 
 	// If one object is fixed 
@@ -286,24 +283,20 @@ public:
 		collisionDirection = ro2.comVelocity.normalized();
 
 		for (int i = 0; i < ro2.currV.rows(); i++) {
-			ro2.currV(i, 0) -= collisionDirection(0, 0) * depth;
-			ro2.currV(i, 1) -= collisionDirection(0, 1) * depth;
-			ro2.currV(i, 2) -= collisionDirection(0, 2) * depth;
+			ro2.currV(i) -= collisionDirection(0) * depth;
 		}
+		ro2.COM -= collisionDirection2 * ro2Depth;
 	}
 
 	else if (ro2.isFixed) {
 		collisionDirection = ro1.comVelocity.normalized();
 
 		for (int i = 0; i < ro1.currV.rows(); i++) {
-			ro1.currV(i, 0) -= collisionDirection(0, 0) * depth;
-			ro1.currV(i, 1) -= collisionDirection(0, 1) * depth;
-			ro1.currV(i, 2) -= collisionDirection(0, 2) * depth;
+			ro1.currV(i) -= collisionDirection(0) * depth;
 		}
+		ro1.COM -= collisionDirection * ro1Depth;
 	}
 	 
-
-	
     //Create impulses and push them into ro1.impulses and ro2.impulses.
     
     /***************
