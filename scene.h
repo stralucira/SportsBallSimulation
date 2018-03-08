@@ -271,22 +271,22 @@ public:
 	}
 
 	// If one object is fixed 
-	if (ro1.isFixed) {
-		collisionDirection = ro2.comVelocity.normalized();
+	else if (ro1.isFixed) {
+		auto back = ro2.comVelocity.normalized() * depth;
 
 		for (int i = 0; i < ro2.currV.rows(); i++) {
-			ro2.currV(i) -= collisionDirection(0) * depth;
+			ro2.currV(i) -= back(0);
 		}
-		ro2.COM -= collisionDirection2 * ro2Depth;
+		ro2.COM -= back;
 	}
 
 	else if (ro2.isFixed) {
-		collisionDirection = ro1.comVelocity.normalized();
+		auto back = ro1.comVelocity.normalized() * depth;
 
 		for (int i = 0; i < ro1.currV.rows(); i++) {
-			ro1.currV(i) -= collisionDirection(0) * depth;
+			ro1.currV(i) -= back(0);
 		}
-		ro1.COM -= collisionDirection * ro1Depth;
+		ro1.COM -= back;
 	}
 	 
     //Create impulses and push them into ro1.impulses and ro2.impulses.
