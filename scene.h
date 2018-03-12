@@ -18,6 +18,7 @@ void stub_dir(const void *obj1, const void *obj2, ccd_vec3_t *dir);
 void center(const void *_obj, ccd_vec3_t *dir);
 
 float GRAVITY = 9.807;
+RowVector3d gravityVec = RowVector3d(0.0, -GRAVITY, 0.0);
 
 //Impulse is defined as a pair <position, direction>
 typedef std::pair<RowVector3d,RowVector3d> Impulse;
@@ -133,6 +134,14 @@ public:
 
 	  orientation.normalize();
 	
+	  // Need to improve interpenetration resolution to use RK for position 
+	  /*RowVector3d pRK1 = COM;
+	  RowVector3d pRK2 = pRK1 + comVelocity * timeStep * 0.5f;
+	  RowVector3d pRK3 = pRK2 + comVelocity * timeStep * 0.5f;
+	  RowVector3d pRK4 = pRK3 + comVelocity * timeStep;
+
+	  COM = (pRK1 + 2.0f * pRK2 + 2.0f * pRK3 + pRK4) / 6.0f;*/
+
 	  COM += comVelocity * timeStep;
 	  
 	  for (int i = 0; i < currV.rows(); i++) {
@@ -158,7 +167,7 @@ public:
 
 		comVelocity += impulses[i].second * (1 / mass);
 
-		angVelocity += getCurrInvInertiaTensor() * impulses[i].second.transpose().cross(arm.transpose());
+		angVelocity += getCurrInvInertiaTensor() * arm.transpose().cross(impulses[i].second);
     }
     impulses.clear();
   }
@@ -171,7 +180,14 @@ public:
     if (isFixed)
       return;
 
-	comVelocity(0, 1) += -GRAVITY*timeStep;
+	RowVector3d vRK1 = comVelocity;
+	RowVector3d vRK2 = vRK1 + gravityVec * timeStep * 0.5f;
+	RowVector3d vRK3 = vRK2 + gravityVec * timeStep * 0.5f;
+	RowVector3d vRK4 = vRK3 + gravityVec * timeStep;
+
+	comVelocity = (vRK1 + 2.0f * vRK2 + 2.0f * vRK3 + vRK4) / 6.0f;
+
+	//comVelocity(0, 1) += -GRAVITY*timeStep;
 
   }
   
@@ -290,19 +306,31 @@ public:
 	}
 	 
     //Create impulses and push them into ro1.impulses and ro2.impulses.
-
 	RowVector3d arm1 = contactPosition - ro1.COM;
 	RowVector3d arm2 = contactPosition - ro2.COM;
 
 	RowVector3d acn1 = arm1.cross(contactNormal);
 	RowVector3d acn2 = arm2.cross(contactNormal);
 
-	double a = acn1 * ro1.getCurrInvInertiaTensor() * acn1.transpose();
-	double b = acn2 * ro2.getCurrInvInertiaTensor() * acn2.transpose();
+	double augTermA = acn1 * ro1.getCurrInvInertiaTensor() * acn1.transpose();
+	double augTermB = acn2 * ro2.getCurrInvInertiaTensor() * acn2.transpose();
+	
 
+	RowVector3d closingVelocity1 = ro1.comVelocity;
+	RowVector3d closingVelocity2 = ro2.comVelocity;
+	if (!ro1.isFixed) {
+		closingVelocity1 += ro1.angVelocity.cross(arm1).dot(contactNormal) * contactNormal;
+	}
+	if (!ro2.isFixed) {
+		closingVelocity2 += ro2.angVelocity.cross(arm2).dot(contactNormal) * contactNormal;
+	} 
+
+	//Including angular velocity to the calculation does produce believable results yet.
+	//RowVector3d velocity_component = (closingVelocity1.dot(contactNormal) - closingVelocity2.dot(contactNormal)) * contactNormal;
+	
 	RowVector3d velocity_component = (ro1.comVelocity - ro2.comVelocity).dot(contactNormal) * contactNormal;
 	double inv_joint_masses = 1 / ((1 / ro1.mass) + (1 / ro2.mass));
-	RowVector3d impulse_magnitude = -1 * (1 + CRCoeff) * velocity_component * ( inv_joint_masses + a + b );
+	RowVector3d impulse_magnitude = -1 * (1 + CRCoeff) * velocity_component * ( inv_joint_masses + augTermA + augTermB );
 
 	ro1.impulses.push_back(Impulse(contactPosition, impulse_magnitude));
 	ro2.impulses.push_back(Impulse(contactPosition, -impulse_magnitude));
@@ -311,8 +339,6 @@ public:
     ro1.updateImpulseVelocities(arm1);
     ro2.updateImpulseVelocities(arm2);
   }
-  
-  
   
   /*********************************************************************
    This function handles a single time step by:
