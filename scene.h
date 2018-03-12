@@ -17,6 +17,7 @@ void support(const void *_obj, const ccd_vec3_t *_d, ccd_vec3_t *_p);
 void stub_dir(const void *obj1, const void *obj2, ccd_vec3_t *dir);
 void center(const void *_obj, ccd_vec3_t *dir);
 
+//double EPSILON = (double) std::numeric_limits<double>::epsilon;
 bool RANDOM_VELOCITIES = false;
 float GRAVITY = 9.807;
 // Standard is wood on wood
@@ -163,7 +164,7 @@ public:
   
   //Updating velocity *instantaneously*. i.e., not integration from acceleration, but as a result of a collision impulse from the "impulses" list
   //You need to modify this for that purpose.
-  void updateImpulseVelocities(RowVector3d arm){
+  void updateImpulseVelocities(){
     
     if (isFixed){
       comVelocity.setZero();
@@ -177,7 +178,9 @@ public:
 
 		comVelocity += impulses[i].second * (1 / mass);
 
-		angVelocity += getCurrInvInertiaTensor() * arm.transpose().cross(impulses[i].second);
+		RowVector3d arm = impulses[i].first - COM;
+
+		angVelocity += getCurrInvInertiaTensor() * arm.cross(impulses[i].second).transpose();
     }
     impulses.clear();
   }
@@ -199,9 +202,8 @@ public:
 
 	// Euler integration 
 	//comVelocity(0, 1) += -GRAVITY*timeStep;
-
 	// If objects have a pivot that is not the center of mass
-	//angVelocity += getCurrInvInertiaTensor() * (COM-pivot).cross(mass * gravityVec).transpose() * timeStep;
+	//angVelocity += getCurrInvInertiaTensor() * (COM-COM).cross(mass * gravityVec).transpose() * timeStep;
   }
   
   
@@ -281,40 +283,43 @@ public:
 
 	// If both objects are free
 	if (!(ro1.isFixed || ro2.isFixed)) {
-		collisionDirection2 = ro2.comVelocity.normalized();
-		collisionDirection = ro1.comVelocity.normalized();
+		//collisionDirection2 = ro2.comVelocity.normalized();
+		//collisionDirection = ro1.comVelocity.normalized();
+
+		//collisionDirection2 = contactNormal;
+		//collisionDirection = contactNormal;
 
 		invJointMass = 1 / (ro1.mass + ro2.mass);
 
 		ro2Depth = depth * ro2.mass * invJointMass;
 		for (int i = 0; i < ro2.currV.rows(); i++) {
-			ro2.currV(i) -= collisionDirection2(0) * ro2Depth;
+			ro2.currV(i) += contactNormal(0) * ro2Depth;
 		}
-		ro2.COM -= collisionDirection2 * ro2Depth;
+		ro2.COM += contactNormal * ro2Depth;
 		
 		ro1Depth = depth * ro1.mass * invJointMass;
 		for (int i = 0; i < ro1.currV.rows(); i++) {
-			ro1.currV(i) -= collisionDirection(0) * ro1Depth;
+			ro1.currV(i) -= contactNormal(0) * ro1Depth;
 		}
-		ro1.COM -= collisionDirection * ro1Depth;
+		ro1.COM -= contactNormal * ro1Depth;
 	}
 
 	// If one object is fixed 
 	else if (ro1.isFixed) {
-		auto back = ro2.comVelocity.normalized() * depth;
+		auto back = contactNormal * depth;
 
-		for (int i = 0; i < ro2.currV.rows(); i++) {
+		/*for (int i = 0; i < ro2.currV.rows(); i++) {
 			ro2.currV(i) -= back(0);
-		}
-		ro2.COM -= back;
+		}*/
+		ro2.COM += back;
 	}
 
 	else if (ro2.isFixed) {
-		auto back = ro1.comVelocity.normalized() * depth;
+		auto back = contactNormal * depth;
 
-		for (int i = 0; i < ro1.currV.rows(); i++) {
+		/*for (int i = 0; i < ro1.currV.rows(); i++) {
 			ro1.currV(i) -= back(0);
-		}
+		}*/
 		ro1.COM -= back;
 	}
 	 
@@ -328,7 +333,6 @@ public:
 	double augTermA = acn1 * ro1.getCurrInvInertiaTensor() * acn1.transpose();
 	double augTermB = acn2 * ro2.getCurrInvInertiaTensor() * acn2.transpose();
 	
-
 	RowVector3d closingVelocity1 = ro1.comVelocity;
 	RowVector3d closingVelocity2 = ro2.comVelocity;
 	if (!ro1.isFixed) {
@@ -339,10 +343,8 @@ public:
 	} 
 
 	
-
-	//Including angular velocity to the calculation does produce believable results yet.
-	//RowVector3d velocity_component = (closingVelocity1 - closingVelocity2).dot(contactNormal) * contactNormal;
-	RowVector3d tangent = (contactNormal.cross(closingVelocity1 - closingVelocity2)).cross(contactNormal);
+	// Friction calculations
+	RowVector3d tangent = (contactNormal.cross(ro1.comVelocity - ro2.comVelocity)).cross(contactNormal);
 	tangent.normalize();
 
 	float fric;
@@ -355,20 +357,12 @@ public:
 	}
 	
 	RowVector3d fricVec = contactNormal + fric*tangent;
-	fricVec.normalize();
+	fricVec;
 
+	//Including angular velocity to the calculation does not produce believable results yet.
+	//RowVector3d velocity_component = (closingVelocity1 - closingVelocity2).dot(contactNormal) * contactNormal;
 	RowVector3d velocity_component = (ro1.comVelocity - ro2.comVelocity).dot(contactNormal) * contactNormal;
-
-	RowVector3d a = ro1.angVelocity.cross(arm1).dot(contactNormal) * contactNormal;
-	RowVector3d b = ro2.angVelocity.cross(arm2).dot(contactNormal) * contactNormal;
 	
-	RowVector3d c; 
-	if (a.norm() > b.norm()) {
-		c = a - b;
-	}
-	if (a.norm() <= b.norm()) {
-		c = b - a;
-	}
 	double inv_joint_masses = 1 / ((1 / ro1.mass) + (1 / ro2.mass));
 	RowVector3d impulse_magnitude = -1 * (1 + CRCoeff) * (velocity_component) * ( inv_joint_masses + augTermA + augTermB );
 
@@ -376,8 +370,8 @@ public:
 	ro2.impulses.push_back(Impulse(contactPosition, -impulse_magnitude));
     
     //updating velocities according to impulses
-    ro1.updateImpulseVelocities(arm1);
-    ro2.updateImpulseVelocities(arm2);
+    ro1.updateImpulseVelocities();
+    ro2.updateImpulseVelocities();
   }
   
   /*********************************************************************
