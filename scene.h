@@ -364,7 +364,8 @@ public:
 	RowVector3d velocity_component = (ro1.comVelocity - ro2.comVelocity).dot(contactNormal) * contactNormal;
 	
 	double inv_joint_masses = 1 / ((1 / ro1.mass) + (1 / ro2.mass));
-	RowVector3d impulse_magnitude = -1 * (1 + CRCoeff) * (velocity_component) * ( inv_joint_masses + augTermA + augTermB );
+	RowVector3d impulse_magnitude = -1 * (1 + CRCoeff) * (velocity_component) * ( inv_joint_masses );
+	//RowVector3d impulse_magnitude = -1 * (1 + CRCoeff) * (velocity_component)* (inv_joint_masses + augTermA + augTermB);
 
 	ro1.impulses.push_back(Impulse(contactPosition, impulse_magnitude));
 	ro2.impulses.push_back(Impulse(contactPosition, -impulse_magnitude));
