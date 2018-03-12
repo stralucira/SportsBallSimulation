@@ -4,6 +4,7 @@
 #include <imgui/imgui.h>
 #include <iostream>
 #include "scene.h"
+#include <time.h>
 
 Eigen::MatrixXd V;
 Eigen::MatrixXi F;
@@ -98,9 +99,15 @@ class CustomMenu : public igl::opengl::glfw::imgui::ImGuiMenu
     // Add new group
     if (ImGui::CollapsingHeader("Algorithm Options", ImGuiTreeNodeFlags_DefaultOpen))
     {
+		ImGui::Checkbox("Rand Init Velocities", &RANDOM_VELOCITIES);
+
       ImGui::SliderFloat("CR Coeff",&CRCoeff,0.0f,10.0f,"%.3f");
       
 	  ImGui::SliderFloat("Gravity", &GRAVITY, 0.0f, 30.0f, "%.3f");
+
+	  ImGui::SliderFloat("Kinetic Friction", &FRICTION_KINETIC, 0.0f, 1.25f, "%.2f");
+
+	  ImGui::SliderFloat("Static Friction", &FRICTION_STATIC, 0.0f, 1.0f, "%.2f");
       
       if (ImGui::SliderFloat("Time Step", &timeStep, 0.05f, 0.0f, "%.3f")) {
         mgpViewer.core.animation_max_fps = (((int)1.0/timeStep));
@@ -116,7 +123,7 @@ int main(int argc, char *argv[])
   using namespace Eigen;
   using namespace std;
   
-  
+  srand(time(NULL));
   // Load scene
   /*if (argc<3){
     cout<<"Please provide path (argument 1 and name of scene file (argument 2)!"<<endl;
@@ -125,6 +132,9 @@ int main(int argc, char *argv[])
   cout<<"scene file: "<< SCENE_FILE <<endl;
   scene.loadScene( SCENE_PATH , SCENE_FILE);
   
+  if (RANDOM_VELOCITIES) {
+	  scene.initalizeRandomVelocities(30.0f);
+  }
   //create platform
   MatrixXd platV;
   MatrixXi platF;

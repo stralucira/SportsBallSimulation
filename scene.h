@@ -17,11 +17,21 @@ void support(const void *_obj, const ccd_vec3_t *_d, ccd_vec3_t *_p);
 void stub_dir(const void *obj1, const void *obj2, ccd_vec3_t *dir);
 void center(const void *_obj, ccd_vec3_t *dir);
 
+bool RANDOM_VELOCITIES = false;
 float GRAVITY = 9.807;
+// Standard is wood on wood
+float FRICTION_KINETIC = 0.47;
+float FRICTION_STATIC = 0.2;
 RowVector3d gravityVec = RowVector3d(0.0, -GRAVITY, 0.0);
 
 //Impulse is defined as a pair <position, direction>
 typedef std::pair<RowVector3d,RowVector3d> Impulse;
+
+double dRand(double dMin, double dMax)
+{
+	double f = (double)rand() / RAND_MAX;
+	return dMin + f * (dMax - dMin);
+}
 
 //the class the contains each individual rigid objects and their functionality
 class RigidObject{
@@ -187,8 +197,11 @@ public:
 
 	comVelocity = (vRK1 + 2.0f * vRK2 + 2.0f * vRK3 + vRK4) / 6.0f;
 
+	// Euler integration 
 	//comVelocity(0, 1) += -GRAVITY*timeStep;
 
+	// If objects have a pivot that is not the center of mass
+	//angVelocity += getCurrInvInertiaTensor() * (COM-pivot).cross(mass * gravityVec).transpose() * timeStep;
   }
   
   
@@ -319,18 +332,45 @@ public:
 	RowVector3d closingVelocity1 = ro1.comVelocity;
 	RowVector3d closingVelocity2 = ro2.comVelocity;
 	if (!ro1.isFixed) {
-		closingVelocity1 += ro1.angVelocity.cross(arm1).dot(contactNormal) * contactNormal;
+		closingVelocity1 += ro1.angVelocity.cross(arm1);
 	}
 	if (!ro2.isFixed) {
-		closingVelocity2 += ro2.angVelocity.cross(arm2).dot(contactNormal) * contactNormal;
+		closingVelocity2 += ro2.angVelocity.cross(arm2);
 	} 
 
-	//Including angular velocity to the calculation does produce believable results yet.
-	//RowVector3d velocity_component = (closingVelocity1.dot(contactNormal) - closingVelocity2.dot(contactNormal)) * contactNormal;
 	
+
+	//Including angular velocity to the calculation does produce believable results yet.
+	//RowVector3d velocity_component = (closingVelocity1 - closingVelocity2).dot(contactNormal) * contactNormal;
+	RowVector3d tangent = (contactNormal.cross(closingVelocity1 - closingVelocity2)).cross(contactNormal);
+	tangent.normalize();
+
+	float fric;
+
+	if ((ro1.comVelocity - ro2.comVelocity).norm() < 0.0001f) {
+		fric = FRICTION_STATIC;
+	}
+	else {
+		fric = FRICTION_KINETIC;
+	}
+	
+	RowVector3d fricVec = contactNormal + fric*tangent;
+	fricVec.normalize();
+
 	RowVector3d velocity_component = (ro1.comVelocity - ro2.comVelocity).dot(contactNormal) * contactNormal;
+
+	RowVector3d a = ro1.angVelocity.cross(arm1).dot(contactNormal) * contactNormal;
+	RowVector3d b = ro2.angVelocity.cross(arm2).dot(contactNormal) * contactNormal;
+	
+	RowVector3d c; 
+	if (a.norm() > b.norm()) {
+		c = a - b;
+	}
+	if (a.norm() <= b.norm()) {
+		c = b - a;
+	}
 	double inv_joint_masses = 1 / ((1 / ro1.mass) + (1 / ro2.mass));
-	RowVector3d impulse_magnitude = -1 * (1 + CRCoeff) * velocity_component * ( inv_joint_masses + augTermA + augTermB );
+	RowVector3d impulse_magnitude = -1 * (1 + CRCoeff) * (velocity_component) * ( inv_joint_masses + augTermA + augTermB );
 
 	ro1.impulses.push_back(Impulse(contactPosition, impulse_magnitude));
 	ro2.impulses.push_back(Impulse(contactPosition, -impulse_magnitude));
@@ -347,6 +387,11 @@ public:
    3. updating the visual scene in fullV and fullT
    *********************************************************************/
   void updateScene(double timeStep, double CRCoeff, MatrixXd& fullV, MatrixXi& fullT){
+
+	if (RANDOM_VELOCITIES) {
+		  initalizeRandomVelocities(50.0f);
+		  RANDOM_VELOCITIES = false;
+	 }
     fullV.conservativeResize(numFullV,3);
     fullT.conservativeResize(numFullT,3);
     int currVIndex=0, currFIndex=0;
@@ -408,6 +453,18 @@ public:
     return true;
   }
   
+  void initalizeRandomVelocities(float bounds) {
+
+	  int i = 0;
+	  for (auto &ro : rigidObjects) {
+		  if (i != 0) {
+			  ro.comVelocity(0, 0) = dRand(-bounds, bounds);
+			  ro.comVelocity(0, 1) = dRand(-bounds, bounds);
+			  ro.comVelocity(0, 2) = dRand(-bounds, bounds);
+		  }
+		  i++;
+	  }
+  }
   
   Scene(){}
   ~Scene(){}
