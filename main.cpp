@@ -16,7 +16,7 @@ float currTime = 0;
 float timeStep = 0.02;
 float CRCoeff = 1.0;
 
-string SCENE_FILE = "mixedscene.txt";
+string SCENE_FILE = "towerscene.txt";
 string SCENE_PATH = "../data";
 
 Scene scene;

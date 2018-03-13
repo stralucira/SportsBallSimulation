@@ -131,17 +131,8 @@ public:
   //You need to modify this according to its purpose
   void updatePosition(double timeStep){
 
-	  Quaternion<double> q = Quaternion<double>(orientation(0, 0), orientation(0, 1), orientation(0, 2), orientation(0, 3));
-	  Quaternion<double> aV = Quaternion<double>(0, angVelocity(0, 0), angVelocity(0, 1), angVelocity(0, 2));
-
-	  Quaternion<double> mult = aV * q;
-
-	  orientation.normalize();
-
-	  orientation(0, 0) += (0.5 * timeStep) * mult.x();
-	  orientation(0, 1) += (0.5 * timeStep) * mult.y();
-	  orientation(0, 2) += (0.5 * timeStep) * mult.z();
-	  orientation(0, 3) += (0.5 * timeStep) * mult.w();
+	  RowVector4d av(0, angVelocity(0, 0), angVelocity(0, 1), angVelocity(0, 2));
+	  orientation += timeStep * 0.5 * QMult(av,orientation); 
 
 	  orientation.normalize();
 	
@@ -152,15 +143,13 @@ public:
 	  RowVector3d pRK4 = pRK3 + comVelocity * timeStep;
 
 	  COM = (pRK1 + 2.0f * pRK2 + 2.0f * pRK3 + pRK4) / 6.0f;*/
-
+	  
 	  COM += comVelocity * timeStep;
 	  
 	  for (int i = 0; i < currV.rows(); i++) {
 		  currV.row(i) = QRot(origV.row(i), orientation) + COM; 
-	  }
-	  
+	  }  
   }
-  
   
   //Updating velocity *instantaneously*. i.e., not integration from acceleration, but as a result of a collision impulse from the "impulses" list
   //You need to modify this for that purpose.
@@ -180,7 +169,7 @@ public:
 
 		RowVector3d arm = impulses[i].first - COM;
 
-		angVelocity += getCurrInvInertiaTensor() * arm.cross(impulses[i].second).transpose();
+		angVelocity += getCurrInvInertiaTensor() * arm.transpose().cross(impulses[i].second);
     }
     impulses.clear();
   }
@@ -200,9 +189,7 @@ public:
 
 	comVelocity = (vRK1 + 2.0f * vRK2 + 2.0f * vRK3 + vRK4) / 6.0f;
 
-	// Euler integration 
-	//comVelocity(0, 1) += -GRAVITY*timeStep;
-	// If objects have a pivot that is not the center of mass
+	
 	//angVelocity += getCurrInvInertiaTensor() * (COM-COM).cross(mass * gravityVec).transpose() * timeStep;
   }
   
@@ -239,11 +226,6 @@ public:
   ~RigidObject(){}
 };
 
-
-
-
-
-
 //This class contains the entire scene operations, and the engine time loop.
 class Scene{
 public:
@@ -269,7 +251,7 @@ public:
    CRCoeff: the coefficient of restitution
    *********************************************************************/
   void handleCollision(RigidObject& ro1, RigidObject& ro2, const double depth, const RowVector3d& contactNormal, const RowVector3d& penPosition, const double CRCoeff){
-    
+
     // Interpretation resolution: move each object by inverse mass weighting, unless either is fixed, and then move the other. Remember to respect the direction of contactNormal and update penPosition accordingly.
     RowVector3d contactPosition = penPosition + depth*contactNormal;
     
@@ -333,16 +315,9 @@ public:
 	double augTermA = acn1 * ro1.getCurrInvInertiaTensor() * acn1.transpose();
 	double augTermB = acn2 * ro2.getCurrInvInertiaTensor() * acn2.transpose();
 	
-	RowVector3d closingVelocity1 = ro1.comVelocity;
-	RowVector3d closingVelocity2 = ro2.comVelocity;
-	if (!ro1.isFixed) {
-		closingVelocity1 += ro1.angVelocity.cross(arm1);
-	}
-	if (!ro2.isFixed) {
-		closingVelocity2 += ro2.angVelocity.cross(arm2);
-	} 
+	RowVector3d closingVelocity1 = ro1.comVelocity + ro1.angVelocity.cross(arm1.transpose());
+	RowVector3d closingVelocity2 = ro2.comVelocity + ro2.angVelocity.cross(arm2.transpose());
 
-	
 	// Friction calculations
 	RowVector3d tangent = (contactNormal.cross(ro1.comVelocity - ro2.comVelocity)).cross(contactNormal);
 	tangent.normalize();
@@ -360,15 +335,15 @@ public:
 	fricVec;
 
 	//Including angular velocity to the calculation does not produce believable results yet.
-	//RowVector3d velocity_component = (closingVelocity1 - closingVelocity2).dot(contactNormal) * contactNormal;
-	RowVector3d velocity_component = (ro1.comVelocity - ro2.comVelocity).dot(contactNormal) * contactNormal;
+	//double velocity_component = (closingVelocity1 - closingVelocity2).dot(contactNormal);
+	double velocity_component = (ro1.comVelocity - ro2.comVelocity).dot(contactNormal);
 	
 	double inv_joint_masses = 1 / ((1 / ro1.mass) + (1 / ro2.mass));
-	RowVector3d impulse_magnitude = -1 * (1 + CRCoeff) * (velocity_component) * ( inv_joint_masses );
-	//RowVector3d impulse_magnitude = -1 * (1 + CRCoeff) * (velocity_component)* (inv_joint_masses + augTermA + augTermB);
+	//double impulse_magnitude = -1 * (1 + CRCoeff) * (velocity_component) * ( inv_joint_masses );
+	double impulse_magnitude = -1 * (1 + CRCoeff) * (velocity_component)* (inv_joint_masses + augTermA + augTermB);
 
-	ro1.impulses.push_back(Impulse(contactPosition, impulse_magnitude));
-	ro2.impulses.push_back(Impulse(contactPosition, -impulse_magnitude));
+ 	ro1.impulses.push_back(Impulse(contactPosition, impulse_magnitude * contactNormal));
+	ro2.impulses.push_back(Impulse(contactPosition, -impulse_magnitude * contactNormal));
     
     //updating velocities according to impulses
     ro1.updateImpulseVelocities();
