@@ -21,8 +21,8 @@ void center(const void *_obj, ccd_vec3_t *dir);
 bool RANDOM_VELOCITIES = false;
 float GRAVITY = 9.807;
 // Standard is none
-float FRICTION_KINETIC = 0.0;
-float FRICTION_STATIC = 0.0;
+float FRICTION_KINETIC = 0.2;
+float FRICTION_STATIC = 0.3;
 double frictionThreshold = 0.001;
 
 float DRAG_COEFF = 1;
@@ -311,40 +311,37 @@ public:
 	RowVector3d impulse = -(1.0f + CRCoeff) * ((relativeVelocity).dot(contactNormal) * (contactNormal))
 		/ ((1.0f / ro1.mass) + (1.0f / ro2.mass) + augTermA + augTermB);
 
+	// Collision impulses
  	ro1.impulses.push_back(Impulse(contactPosition, impulse));
 	ro2.impulses.push_back(Impulse(contactPosition, -impulse));
 
+	//Friction Calculations - Disabled
+	RowVector3d tangent = (contactNormal.cross(relativeVelocity)).cross(contactNormal);
+	tangent.normalize();
+
+	RowVector3d armCrossTangent1 = arm1.cross(tangent);
+	RowVector3d armCrossTangent2 = arm2.cross(tangent);
+
+	double augTermFricA = armCrossTangent1 * ro1.getCurrInvInertiaTensor() * armCrossTangent1.transpose();
+	double augTermFricB = armCrossTangent2 * ro2.getCurrInvInertiaTensor() * armCrossTangent2.transpose();
+
+	RowVector3d fricImpulse;
+	if (relativeVelocity.norm() <= frictionThreshold) {
+		fricImpulse = -(1.0f + CRCoeff) * ((relativeVelocity).dot(tangent) * FRICTION_STATIC *(tangent))
+			/ ((1.0f / ro1.mass) + (1.0f / ro2.mass) + augTermFricA + augTermFricB);
+	}
+	else {
+		fricImpulse = -(1.0f + CRCoeff) * ((relativeVelocity).dot(tangent) * FRICTION_KINETIC *(tangent))
+			/ ((1.0f / ro1.mass) + (1.0f / ro2.mass) + augTermFricA + augTermFricB);
+	}
+	
+	//FRICTION IMPULSES -- Works as intended on decreasing total impulse, BUT collision detection breaks when enabled. small fast objects pass through (?)
+	//ro1.impulses.push_back(Impulse(contactPosition, fricImpulse));
+	//ro2.impulses.push_back(Impulse(contactPosition, -fricImpulse));
+	  
 	//updating velocities according to impulses
 	ro1.updateImpulseVelocities();
 	ro2.updateImpulseVelocities();
-
-
-	//Frictiction Calculations - Disabled
-	//RowVector3d tangent = (contactNormal.cross(relativeVelocity)).cross(contactNormal);
-	//tangent.normalize();
-
-	//RowVector3d armCrossTangent1 = arm1.cross(tangent);
-	//RowVector3d armCrossTangent2 = arm2.cross(tangent);
-
-	//double augTermFricA = armCrossTangent1 * ro1.getCurrInvInertiaTensor() * armCrossTangent1.transpose();
-	//double augTermFricB = armCrossTangent2 * ro2.getCurrInvInertiaTensor() * armCrossTangent2.transpose();
-
-	//RowVector3d fricImpulse;
-	//if (relativeVelocity.norm() <= frictionThreshold) {
-	//	fricImpulse = -(1.0f + CRCoeff) * ((relativeVelocity).dot(tangent) * FRICTION_STATIC *(tangent))
-	//		/ ((1.0f / ro1.mass) + (1.0f / ro2.mass) + augTermFricA + augTermFricB);
-	//}
-	//else {
-	//	fricImpulse = -(1.0f + CRCoeff) * ((relativeVelocity).dot(tangent) * FRICTION_KINETIC *(tangent))
-	//		/ ((1.0f / ro1.mass) + (1.0f / ro2.mass) + augTermFricA + augTermFricB);
-	//}
-	//
-	//ro1.impulses.push_back(Impulse(contactPosition, fricImpulse));
-	//ro2.impulses.push_back(Impulse(contactPosition, -fricImpulse));
-	//   
-	//   //updating velocities according to impulses
-	//   ro1.updateImpulseVelocities();
-	//   ro2.updateImpulseVelocities();
   }
   
   /*********************************************************************
