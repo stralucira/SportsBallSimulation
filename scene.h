@@ -20,9 +20,14 @@ void center(const void *_obj, ccd_vec3_t *dir);
 //double EPSILON = (double) std::numeric_limits<double>::epsilon;
 bool RANDOM_VELOCITIES = false;
 float GRAVITY = 9.807;
-// Standard is wood on wood
-float FRICTION_KINETIC = 0.47;
-float FRICTION_STATIC = 0.2;
+// Standard is none
+float FRICTION_KINETIC = 0.0;
+float FRICTION_STATIC = 0.0;
+double frictionThreshold = 0.001;
+
+float DRAG_COEFF = 1;
+
+// Explicit gravity vector
 RowVector3d gravityVec = RowVector3d(0.0, -GRAVITY, 0.0);
 
 //Impulse is defined as a pair <position, direction>
@@ -75,12 +80,10 @@ public:
   }
   
   bool isCollide(const RigidObject& ro, double& depth, RowVector3d& intNormal, RowVector3d& intPosition){
-    
-    
+
     //collision between bounding boxes
     if (!isBoxCollide(ro))
       return false;
-    
     
     ccd_t ccd;
     ccd_vec3_t sep;
@@ -120,32 +123,30 @@ public:
   
   //return the current inverted inertia tensor around the current COM. Update it by applying the orientation
   Matrix3d getCurrInvInertiaTensor(){
-	  
-	 orientation.normalize();
-
-	return Q2RotMatrix(orientation).transpose() * invIT * Q2RotMatrix(orientation);
+	  Matrix3d R;
+	  R = Q2RotMatrix(orientation).transpose() * invIT * Q2RotMatrix(orientation);
+	  return R;
   }
   
   
   //Update the current position and orientation by integrating the linear and angular velocities, and update currV accordingly
   //You need to modify this according to its purpose
   void updatePosition(double timeStep){
+	  //Euler step
+	  //COM += comVelocity * timeStep;
 
-	  RowVector4d av(0, angVelocity(0, 0), angVelocity(0, 1), angVelocity(0, 2));
-	  orientation += timeStep * 0.5 * QMult(av,orientation); 
+	  //Fourth order runge-kutta integration to update position
+	  RowVector3d p2 = COM + comVelocity * timeStep * 0.5f;
+	  RowVector3d p3 = p2 + comVelocity * timeStep * 0.5f;
+	  RowVector3d p4 = p3 + comVelocity * timeStep;
+	  COM = (COM + 2.0f * p2 + 2.0f * p3 + p4) / 6.0f;
 
+	  //Integrate angular velocity to update orientation 
+	  RowVector4d angularVelocityContainer(0, angVelocity(0, 0), angVelocity(0, 1), angVelocity(0, 2));
+	  orientation += timeStep * 0.5 * QMult(angularVelocityContainer,orientation);
 	  orientation.normalize();
-	
-	  // Need to improve interpenetration resolution to use RK for position 
-	  /*RowVector3d pRK1 = COM;
-	  RowVector3d pRK2 = pRK1 + comVelocity * timeStep * 0.5f;
-	  RowVector3d pRK3 = pRK2 + comVelocity * timeStep * 0.5f;
-	  RowVector3d pRK4 = pRK3 + comVelocity * timeStep;
 
-	  COM = (pRK1 + 2.0f * pRK2 + 2.0f * pRK3 + pRK4) / 6.0f;*/
-	  
-	  COM += comVelocity * timeStep;
-	  
+	  //Update the position of every vertex with new orientation and COM.
 	  for (int i = 0; i < currV.rows(); i++) {
 		  currV.row(i) = QRot(origV.row(i), orientation) + COM; 
 	  }  
@@ -168,8 +169,7 @@ public:
 		comVelocity += impulses[i].second * (1 / mass);
 
 		RowVector3d arm = impulses[i].first - COM;
-
-		angVelocity += getCurrInvInertiaTensor() * arm.transpose().cross(impulses[i].second);
+		angVelocity += getCurrInvInertiaTensor() * arm.cross(impulses[i].second).transpose();
     }
     impulses.clear();
   }
@@ -181,16 +181,15 @@ public:
     
     if (isFixed)
       return;
-
-	RowVector3d vRK1 = comVelocity;
-	RowVector3d vRK2 = vRK1 + gravityVec * timeStep * 0.5f;
-	RowVector3d vRK3 = vRK2 + gravityVec * timeStep * 0.5f;
-	RowVector3d vRK4 = vRK3 + gravityVec * timeStep;
-
-	comVelocity = (vRK1 + 2.0f * vRK2 + 2.0f * vRK3 + vRK4) / 6.0f;
-
 	
-	//angVelocity += getCurrInvInertiaTensor() * (COM-COM).cross(mass * gravityVec).transpose() * timeStep;
+	RowVector3d netAcceleration = gravityVec - (DRAG_COEFF * comVelocity * (1 / mass));
+
+	//Fourth order runge-kutta integration
+	RowVector3d v2 = comVelocity + netAcceleration * timeStep * 0.5f;
+	RowVector3d v3 = v2 + netAcceleration * timeStep * 0.5f;
+	RowVector3d v4 = v3 + netAcceleration * timeStep;
+
+	comVelocity = (comVelocity + 2.0f * v2 + 2.0f * v3 + v4) / 6.0f;
   }
   
   
@@ -254,100 +253,98 @@ public:
 
     // Interpretation resolution: move each object by inverse mass weighting, unless either is fixed, and then move the other. Remember to respect the direction of contactNormal and update penPosition accordingly.
     RowVector3d contactPosition = penPosition + depth*contactNormal;
-    
-	RowVector3d collisionDirection;
-	RowVector3d collisionDirection2;
 	
-	double invJointMass;
+	double invSummedMass;
 
 	double ro2Depth;
 	double ro1Depth;
 
 	// If both objects are free
 	if (!(ro1.isFixed || ro2.isFixed)) {
-		//collisionDirection2 = ro2.comVelocity.normalized();
-		//collisionDirection = ro1.comVelocity.normalized();
+		invSummedMass = 1 / (ro1.mass + ro2.mass);
 
-		//collisionDirection2 = contactNormal;
-		//collisionDirection = contactNormal;
+		// Heavier object moves back less
+		ro1Depth = depth * ro2.mass * invSummedMass;
+		ro2Depth = depth * ro1.mass * invSummedMass;
 
-		invJointMass = 1 / (ro1.mass + ro2.mass);
-
-		ro2Depth = depth * ro2.mass * invJointMass;
-		for (int i = 0; i < ro2.currV.rows(); i++) {
-			ro2.currV(i) += contactNormal(0) * ro2Depth;
-		}
-		ro2.COM += contactNormal * ro2Depth;
-		
-		ro1Depth = depth * ro1.mass * invJointMass;
-		for (int i = 0; i < ro1.currV.rows(); i++) {
-			ro1.currV(i) -= contactNormal(0) * ro1Depth;
-		}
 		ro1.COM -= contactNormal * ro1Depth;
+		for (int i = 0; i < ro1.currV.rows(); i++) {
+			ro1.currV.row(i) = QRot(ro1.origV.row(i), ro1.orientation) + ro1.COM;
+		}
+
+		ro2.COM += contactNormal * ro2Depth;
+		for (int i = 0; i < ro2.currV.rows(); i++) {
+			ro2.currV.row(i) = QRot(ro2.origV.row(i), ro2.orientation) + ro2.COM;
+		}
 	}
 
 	// If one object is fixed 
 	else if (ro1.isFixed) {
-		auto back = contactNormal * depth;
-
-		/*for (int i = 0; i < ro2.currV.rows(); i++) {
-			ro2.currV(i) -= back(0);
-		}*/
-		ro2.COM += back;
+		ro2.COM += contactNormal * depth;
+		for (int i = 0; i < ro2.currV.rows(); i++) {
+			ro2.currV.row(i) = QRot(ro2.origV.row(i), ro2.orientation) + ro2.COM;
+		}
 	}
 
 	else if (ro2.isFixed) {
-		auto back = contactNormal * depth;
-
-		/*for (int i = 0; i < ro1.currV.rows(); i++) {
-			ro1.currV(i) -= back(0);
-		}*/
-		ro1.COM -= back;
+		ro1.COM -= contactNormal * depth;
+		for (int i = 0; i < ro1.currV.rows(); i++) {
+			ro1.currV.row(i) = QRot(ro1.origV.row(i), ro1.orientation) + ro1.COM;
+		}
 	}
-	 
+
+	RowVector3d fullVelocity1 = ro1.comVelocity + ro1.angVelocity.cross(contactPosition - ro1.COM);
+	RowVector3d fullVelocity2 = ro2.comVelocity + ro2.angVelocity.cross(contactPosition - ro2.COM);
+
+	RowVector3d relativeVelocity = fullVelocity1 - fullVelocity2;
+
     //Create impulses and push them into ro1.impulses and ro2.impulses.
 	RowVector3d arm1 = contactPosition - ro1.COM;
 	RowVector3d arm2 = contactPosition - ro2.COM;
 
-	RowVector3d acn1 = arm1.cross(contactNormal);
-	RowVector3d acn2 = arm2.cross(contactNormal);
+	RowVector3d armCrossNormal1 = arm1.cross(contactNormal);
+	RowVector3d armCrossNormal2 = arm2.cross(contactNormal);
 
-	double augTermA = acn1 * ro1.getCurrInvInertiaTensor() * acn1.transpose();
-	double augTermB = acn2 * ro2.getCurrInvInertiaTensor() * acn2.transpose();
-	
-	RowVector3d closingVelocity1 = ro1.comVelocity + ro1.angVelocity.cross(arm1.transpose());
-	RowVector3d closingVelocity2 = ro2.comVelocity + ro2.angVelocity.cross(arm2.transpose());
+	double augTermA = armCrossNormal1 * ro1.getCurrInvInertiaTensor() * armCrossNormal1.transpose();
+	double augTermB = armCrossNormal2 * ro2.getCurrInvInertiaTensor() * armCrossNormal2.transpose();
 
-	// Friction calculations
-	RowVector3d tangent = (contactNormal.cross(ro1.comVelocity - ro2.comVelocity)).cross(contactNormal);
-	tangent.normalize();
+	RowVector3d impulse = -(1.0f + CRCoeff) * ((relativeVelocity).dot(contactNormal) * (contactNormal))
+		/ ((1.0f / ro1.mass) + (1.0f / ro2.mass) + augTermA + augTermB);
 
-	float fric;
+ 	ro1.impulses.push_back(Impulse(contactPosition, impulse));
+	ro2.impulses.push_back(Impulse(contactPosition, -impulse));
 
-	if ((ro1.comVelocity - ro2.comVelocity).norm() < 0.0001f) {
-		fric = FRICTION_STATIC;
-	}
-	else {
-		fric = FRICTION_KINETIC;
-	}
-	
-	RowVector3d fricVec = contactNormal + fric*tangent;
-	fricVec;
+	//updating velocities according to impulses
+	ro1.updateImpulseVelocities();
+	ro2.updateImpulseVelocities();
 
-	//Including angular velocity to the calculation does not produce believable results yet.
-	//double velocity_component = (closingVelocity1 - closingVelocity2).dot(contactNormal);
-	double velocity_component = (ro1.comVelocity - ro2.comVelocity).dot(contactNormal);
-	
-	double inv_joint_masses = 1 / ((1 / ro1.mass) + (1 / ro2.mass));
-	//double impulse_magnitude = -1 * (1 + CRCoeff) * (velocity_component) * ( inv_joint_masses );
-	double impulse_magnitude = -1 * (1 + CRCoeff) * (velocity_component)* (inv_joint_masses + augTermA + augTermB);
 
- 	ro1.impulses.push_back(Impulse(contactPosition, impulse_magnitude * contactNormal));
-	ro2.impulses.push_back(Impulse(contactPosition, -impulse_magnitude * contactNormal));
-    
-    //updating velocities according to impulses
-    ro1.updateImpulseVelocities();
-    ro2.updateImpulseVelocities();
+	//Frictiction Calculations - Disabled
+	//RowVector3d tangent = (contactNormal.cross(relativeVelocity)).cross(contactNormal);
+	//tangent.normalize();
+
+	//RowVector3d armCrossTangent1 = arm1.cross(tangent);
+	//RowVector3d armCrossTangent2 = arm2.cross(tangent);
+
+	//double augTermFricA = armCrossTangent1 * ro1.getCurrInvInertiaTensor() * armCrossTangent1.transpose();
+	//double augTermFricB = armCrossTangent2 * ro2.getCurrInvInertiaTensor() * armCrossTangent2.transpose();
+
+	//RowVector3d fricImpulse;
+	//if (relativeVelocity.norm() <= frictionThreshold) {
+	//	fricImpulse = -(1.0f + CRCoeff) * ((relativeVelocity).dot(tangent) * FRICTION_STATIC *(tangent))
+	//		/ ((1.0f / ro1.mass) + (1.0f / ro2.mass) + augTermFricA + augTermFricB);
+	//}
+	//else {
+	//	fricImpulse = -(1.0f + CRCoeff) * ((relativeVelocity).dot(tangent) * FRICTION_KINETIC *(tangent))
+	//		/ ((1.0f / ro1.mass) + (1.0f / ro2.mass) + augTermFricA + augTermFricB);
+	//}
+	//
+	//ro1.impulses.push_back(Impulse(contactPosition, fricImpulse));
+	//ro2.impulses.push_back(Impulse(contactPosition, -fricImpulse));
+	//   
+	//   //updating velocities according to impulses
+	//   ro1.updateImpulseVelocities();
+	//   ro2.updateImpulseVelocities();
   }
   
   /*********************************************************************
@@ -359,7 +356,7 @@ public:
   void updateScene(double timeStep, double CRCoeff, MatrixXd& fullV, MatrixXi& fullT){
 
 	if (RANDOM_VELOCITIES) {
-		  initalizeRandomVelocities(50.0f);
+		  initalizeRandomVelocities(20.0f);
 		  RANDOM_VELOCITIES = false;
 	 }
     fullV.conservativeResize(numFullV,3);
@@ -427,9 +424,9 @@ public:
 
 	  int i = 0;
 	  for (auto &ro : rigidObjects) {
-		  if (i != 0) {
+		  if (i != rigidObjects.size() - 1) {
 			  ro.comVelocity(0, 0) = dRand(-bounds, bounds);
-			  ro.comVelocity(0, 1) = dRand(-bounds, bounds);
+			  ro.comVelocity(0, 1) = dRand(-bounds, bounds * 0.5f);
 			  ro.comVelocity(0, 2) = dRand(-bounds, bounds);
 		  }
 		  i++;

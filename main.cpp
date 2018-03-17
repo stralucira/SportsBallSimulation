@@ -105,6 +105,8 @@ class CustomMenu : public igl::opengl::glfw::imgui::ImGuiMenu
       
 	  ImGui::SliderFloat("Gravity", &GRAVITY, 0.0f, 30.0f, "%.3f");
 
+	  ImGui::SliderFloat("Drag Coefficient", &DRAG_COEFF, 0.3f, 1.0f, "%.1f");
+
 	  ImGui::SliderFloat("Kinetic Friction", &FRICTION_KINETIC, 0.0f, 1.25f, "%.2f");
 
 	  ImGui::SliderFloat("Static Friction", &FRICTION_STATIC, 0.0f, 1.0f, "%.2f");
@@ -132,9 +134,6 @@ int main(int argc, char *argv[])
   cout<<"scene file: "<< SCENE_FILE <<endl;
   scene.loadScene( SCENE_PATH , SCENE_FILE);
   
-  if (RANDOM_VELOCITIES) {
-	  scene.initalizeRandomVelocities(30.0f);
-  }
   //create platform
   MatrixXd platV;
   MatrixXi platF;
