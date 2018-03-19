@@ -1,8 +1,20 @@
+/** 
+*	GAME PHYSICS PRACTICAL 1
+*	Basar Oguz - 6084990
+*	Nick Hemmink - 5822386
+*
+*/
+
 #ifndef SCENE_HEADER_FILE
 #define SCENE_HEADER_FILE
 
 #include <vector>
 #include <fstream>
+#include <cstdint>
+#include <algorithm>
+#include <iostream>
+#include <iomanip>
+#include <random>
 #include <igl/bounding_box.h>
 #include <igl/readOFF.h>
 #include "ccd.h"
@@ -21,9 +33,9 @@ void center(const void *_obj, ccd_vec3_t *dir);
 bool RANDOM_VELOCITIES = false;
 float GRAVITY = 9.807;
 // Standard is none
-float FRICTION_KINETIC = 0.2;
-float FRICTION_STATIC = 0.3;
-double frictionThreshold = 0.001;
+float FRICTION_KINETIC = 0.0f;
+float FRICTION_STATIC = 0.0f;
+double frictionThreshold = 0.01f;
 
 float DRAG_COEFF = 1;
 
@@ -181,7 +193,7 @@ public:
     
     if (isFixed)
       return;
-	
+
 	RowVector3d netAcceleration = gravityVec - (DRAG_COEFF * comVelocity * (1 / mass));
 
 	//Fourth order runge-kutta integration
@@ -308,15 +320,22 @@ public:
 	double augTermA = armCrossNormal1 * ro1.getCurrInvInertiaTensor() * armCrossNormal1.transpose();
 	double augTermB = armCrossNormal2 * ro2.getCurrInvInertiaTensor() * armCrossNormal2.transpose();
 
-	RowVector3d impulse = -(1.0f + CRCoeff) * ((relativeVelocity).dot(contactNormal) * (contactNormal))
+	double impulseMagnitudeJ = -(1.0f + CRCoeff) * ((relativeVelocity).dot(contactNormal))
 		/ ((1.0f / ro1.mass) + (1.0f / ro2.mass) + augTermA + augTermB);
 
 	// Collision impulses
- 	ro1.impulses.push_back(Impulse(contactPosition, impulse));
-	ro2.impulses.push_back(Impulse(contactPosition, -impulse));
+ 	ro1.impulses.push_back(Impulse(contactPosition, impulseMagnitudeJ * contactNormal));
+	ro2.impulses.push_back(Impulse(contactPosition, -impulseMagnitudeJ * contactNormal));
 
-	//Friction Calculations - Disabled
+	//Friction Calculations
 	RowVector3d tangent = (contactNormal.cross(relativeVelocity)).cross(contactNormal);
+
+	// Check if tangent has been constructed properly, if not augment the normal to find the tangent
+	if (tangent.norm() == 0.0f) {
+		RowVector3d temp = contactNormal;
+		temp(0, 0) = 1.0f;
+		tangent = (temp.cross(relativeVelocity)).cross(temp);
+	}
 	tangent.normalize();
 
 	RowVector3d armCrossTangent1 = arm1.cross(tangent);
@@ -325,20 +344,21 @@ public:
 	double augTermFricA = armCrossTangent1 * ro1.getCurrInvInertiaTensor() * armCrossTangent1.transpose();
 	double augTermFricB = armCrossTangent2 * ro2.getCurrInvInertiaTensor() * armCrossTangent2.transpose();
 
-	RowVector3d fricImpulse;
+	double fricImpulse = -(1.0f + CRCoeff) * ((relativeVelocity).dot(tangent))
+		/ ((1.0f / ro1.mass) + (1.0f / ro2.mass) + augTermFricA + augTermFricB);
+
+	fricImpulse = std::max(fricImpulse, impulseMagnitudeJ);
+
+	//FRICTION IMPULSES 
 	if (relativeVelocity.norm() <= frictionThreshold) {
-		fricImpulse = -(1.0f + CRCoeff) * ((relativeVelocity).dot(tangent) * FRICTION_STATIC *(tangent))
-			/ ((1.0f / ro1.mass) + (1.0f / ro2.mass) + augTermFricA + augTermFricB);
+		ro1.impulses.push_back(Impulse(contactPosition, fricImpulse*(FRICTION_STATIC * tangent)));
+		ro2.impulses.push_back(Impulse(contactPosition, -fricImpulse*(FRICTION_STATIC * tangent)));
 	}
 	else {
-		fricImpulse = -(1.0f + CRCoeff) * ((relativeVelocity).dot(tangent) * FRICTION_KINETIC *(tangent))
-			/ ((1.0f / ro1.mass) + (1.0f / ro2.mass) + augTermFricA + augTermFricB);
+		ro1.impulses.push_back(Impulse(contactPosition, fricImpulse*(FRICTION_KINETIC * tangent)));
+		ro2.impulses.push_back(Impulse(contactPosition, -fricImpulse*(FRICTION_KINETIC * tangent)));
 	}
 	
-	//FRICTION IMPULSES -- Works as intended on decreasing total impulse, BUT collision detection breaks when enabled. small fast objects pass through (?)
-	//ro1.impulses.push_back(Impulse(contactPosition, fricImpulse));
-	//ro2.impulses.push_back(Impulse(contactPosition, -fricImpulse));
-	  
 	//updating velocities according to impulses
 	ro1.updateImpulseVelocities();
 	ro2.updateImpulseVelocities();
@@ -372,8 +392,6 @@ public:
       for (int j=i+1;j<rigidObjects.size();j++)
         if (rigidObjects[i].isCollide(rigidObjects[j],depth, contactNormal, penPosition))
           handleCollision(rigidObjects[i], rigidObjects[j],depth, contactNormal.normalized(), penPosition, CRCoeff);
-    
-    
     
     //Code for updating visualization meshes
     for (int i=0;i<rigidObjects.size();i++){

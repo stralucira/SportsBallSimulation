@@ -16,9 +16,6 @@ float currTime = 0;
 float timeStep = 0.02;
 float CRCoeff = 1.0;
 
-string SCENE_FILE = "towerscene.txt";
-string SCENE_PATH = "../data";
-
 Scene scene;
 
 void createPlatform(Eigen::MatrixXd& platV, Eigen::MatrixXi& platF, Eigen::RowVector3d& platCOM, Eigen::RowVector4d& platOrientation)
@@ -127,12 +124,12 @@ int main(int argc, char *argv[])
   
   srand(time(NULL));
   // Load scene
-  /*if (argc<3){
-    cout<<"Please provide path (argument 1 and name of scene file (argument 2)!"<<endl;
+  if (argc<3){
+    cout<<"please provide path (argument 1 and name of scene file (argument 2)!"<<endl;
     return 0;
-  }*/
-  cout<<"scene file: "<< SCENE_FILE <<endl;
-  scene.loadScene( SCENE_PATH , SCENE_FILE);
+  }
+  cout << "scene file: " << std::string(argv[2]) << endl;
+  scene.loadScene(std::string(argv[1]), std::string(argv[2]));
   
   //create platform
   MatrixXd platV;
