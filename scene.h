@@ -177,7 +177,6 @@ public:
     
     //update linear and angular velocity according to all impulses
     for (int i=0;i<impulses.size();i++){
-
 		comVelocity += impulses[i].second * (1 / mass);
 
 		RowVector3d arm = impulses[i].first - COM;
@@ -185,7 +184,6 @@ public:
     }
     impulses.clear();
   }
-  
   
   //Updating the linear and angular velocities of the object
   //You need to modify this to integrate from acceleration in the field (basically gravity)
@@ -203,7 +201,6 @@ public:
 
 	comVelocity = (comVelocity + 2.0f * v2 + 2.0f * v3 + v4) / 6.0f;
   }
-  
   
   //the full integration for the time step (velocity + position)
   //You need to modify this if you are changing the integration
@@ -428,6 +425,7 @@ public:
       sceneFileHandle>>OFFFileName>>density>>isFixed>>COM(0)>>COM(1)>>COM(2)>>orientation(0)>>orientation(1)>>orientation(2)>>orientation(3);
       orientation.normalize();
       igl::readOFF(path+std::string("/")+OFFFileName,objV,objT);
+	  objV = objV * 5.0;
       addRigidObject(objV,objT,density, isFixed, COM, orientation);
       cout << "COM: " << COM <<endl;
       cout << "orientation: " << orientation <<endl;
@@ -443,6 +441,17 @@ public:
 			  ro.comVelocity(0, 0) = dRand(-bounds, bounds);
 			  ro.comVelocity(0, 1) = dRand(-bounds, bounds * 0.5f);
 			  ro.comVelocity(0, 2) = dRand(-bounds, bounds);
+		  }
+		  i++;
+	  }
+  }
+
+  void kickBall() {
+
+	  int i = 0;
+	  for (auto &ro : rigidObjects) {
+		  if (i != rigidObjects.size() - 1) {
+			  ro.comVelocity(0, 2) = 50.0f;
 		  }
 		  i++;
 	  }

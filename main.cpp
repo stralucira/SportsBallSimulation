@@ -65,6 +65,11 @@ bool key_down(igl::opengl::glfw::Viewer &viewer, unsigned char key, int modifier
       return true;
     }
   }
+
+  if (key == 'K')
+  {
+	  scene.kickBall();
+  }
   return false;
 }
 
