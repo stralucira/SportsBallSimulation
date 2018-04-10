@@ -36,6 +36,7 @@ float GRAVITY = 9.807;
 float FRICTION_KINETIC = 0.0f;
 float FRICTION_STATIC = 0.0f;
 double frictionThreshold = 0.01f;
+double ballDiameter = 0.25;
 
 float DRAG_COEFF = 1;
 
@@ -191,13 +192,41 @@ public:
     
     if (isFixed)
       return;
+
+	double a = 4.8642417705198077*pow(10, -1);
+	double b = -3.1046970158769976*pow(10,-6);
+	double c = 4.4863102365668911*pow(10, -1);
+	double offset = 8.2568893848661493*pow(10, -1);
+
+
 	double airDensity = 1.225;
-	double reynoldsNumber =  (1.225 / 1.81) * pow(10,5) * comVelocity.norm() * 10;
-	double Cdrag = 0.3642832 + 0.000002504919 * reynoldsNumber - 8.155993 * pow(10, -12) * reynoldsNumber * reynoldsNumber;
+	double reynoldsNumber =  (1.225 / 1.81) * pow(10,5) * comVelocity.norm() * ballDiameter;
 
-	DRAG_COEFF = 0.5 * airDensity * Cdrag;
+	double Cdrag = a * a * a / ((reynoldsNumber * b + c) * (reynoldsNumber * b + c) + a * a);
 
-	RowVector3d netAcceleration = gravityVec - (DRAG_COEFF * comVelocity * (1 / mass));
+	//double Cdrag = 0.3642832 + 0.000002504919 * reynoldsNumber - 8.155993 * pow(10, -12) * reynoldsNumber * reynoldsNumber;
+
+	DRAG_COEFF = 0.5 * airDensity * Cdrag * M_PI * ballDiameter;
+	cout << "reynolds number: " << reynoldsNumber << endl;
+	cout << "velocity: " << comVelocity << endl;
+	cout << "drag: "<< Cdrag << endl;
+
+	RowVector3d netAcceleration;
+
+	//cout << "angular velocity: " << angVelocity << endl;
+	if (!angVelocity.isZero(0)) {
+		RowVector3d liftNormal = angVelocity.cross(comVelocity);
+		liftNormal.normalize();
+		//cout << "Lift normal: " << liftNormal << endl;
+		double Sn = angVelocity.norm() * 10.0f * (1 / 2 * comVelocity.norm());
+		double liftCoefficient = 0.005098631 + 2.419804*Sn - 9.062741*Sn*Sn + 12.61261*Sn*Sn*Sn;
+		//double liftCoefficient = 0.02023377 + 1.484177*Sn - 1.79329*Sn*Sn;
+		double LIFT = 0.5f * airDensity * liftCoefficient * 10 * M_PI * comVelocity.norm();
+		netAcceleration = gravityVec + (DRAG_COEFF * comVelocity * (1 / mass)) + (LIFT* (1/mass) * liftNormal);
+	}
+	else {
+		netAcceleration = gravityVec + (DRAG_COEFF * comVelocity * (1 / mass));
+	}
 
 	//Fourth order runge-kutta integration
 	RowVector3d v2 = comVelocity + netAcceleration * timeStep * 0.5f;
@@ -456,7 +485,8 @@ public:
 	  int i = 0;
 	  for (auto &ro : rigidObjects) {
 		  if (i != rigidObjects.size() - 1) {
-			  ro.comVelocity(0, 2) = 50.0f;
+			  ro.comVelocity(0, 2) = 27.77f;
+			  ro.angVelocity(0, 1) = 150; 
 		  }
 		  i++;
 	  }
