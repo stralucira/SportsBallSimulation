@@ -191,6 +191,11 @@ public:
     
     if (isFixed)
       return;
+	double airDensity = 1.225;
+	double reynoldsNumber =  (1.225 / 1.81) * pow(10,5) * comVelocity.norm() * 10;
+	double Cdrag = 0.3642832 + 0.000002504919 * reynoldsNumber - 8.155993 * pow(10, -12) * reynoldsNumber * reynoldsNumber;
+
+	DRAG_COEFF = 0.5 * airDensity * Cdrag;
 
 	RowVector3d netAcceleration = gravityVec - (DRAG_COEFF * comVelocity * (1 / mass));
 
