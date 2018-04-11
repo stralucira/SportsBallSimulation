@@ -5,8 +5,16 @@ The goal of this project is to investigate and simulate the aerodynamics of rota
 
 ![alt text](snap.png)
 
+# Usage
 The project is built upon the skeleton of the first practical.
-The program is loaded by providing two commandline arguments: path of data folder (without final "/"), and name of TXT file that describes the scene, in this case "ballscene.txt". The file should be in the data subfolder, which is automatically discovered by the CMake. 
+
+The program is loaded by providing two commandline arguments: path of data folder (without final "/"), and name of TXT file that describes the scene, in this case "ballscene.txt".
+
+```../data ballscene.txt
+```
+
+At runtime, press "k" to kick the ball with predefined velocities and press Space to simulate.
+
 
 ##Installation
 
