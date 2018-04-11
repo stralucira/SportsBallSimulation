@@ -38,6 +38,8 @@ float FRICTION_STATIC = 0.0f;
 double frictionThreshold = 0.01f;
 double ballDiameter = 0.25;
 
+const RowVector3d ballColor(0.9, 0.85, 0.9);
+
 float DRAG_COEFF = 1;
 
 // Explicit gravity vector
@@ -469,10 +471,13 @@ public:
       igl::readOFF(path+std::string("/")+OFFFileName,objV,objT);
 	  
 	  if (i == 0) { objV = objV * 5.0; }
+	  double a = cos(M_PI / 4);
+	  double b = sin(M_PI / 4);
+	  if (i == 1 || i == 2) { orientation = QMult(RowVector4d(a, b, 0, 0), orientation); }
       
 	  addRigidObject(objV,objT,density, isFixed, COM, orientation);
-      cout << "COM: " << COM <<endl;
-      cout << "orientation: " << orientation <<endl;
+      cout << "COM: " << COM << endl;
+      cout << "orientation: " << orientation << endl;
     }
     return true;
   }
@@ -491,15 +496,9 @@ public:
   }
 
   void kickBall() {
-
-	  int i = 0;
-	  for (auto &ro : rigidObjects) {
-		  if (i != rigidObjects.size() - 1) {
-			  ro.comVelocity(0, 2) = 27.77f;
-			  ro.angVelocity(0, 1) = 150; 
-		  }
-		  i++;
-	  }
+	  rigidObjects[0].comVelocity(0, 1) = 20.77f;
+	  rigidObjects[0].comVelocity(0, 2) = 27.77f;
+	  rigidObjects[0].angVelocity(0, 1) = 150;
   }
   
   Scene(){}

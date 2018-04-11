@@ -86,6 +86,16 @@ bool pre_draw(igl::opengl::glfw::Viewer &viewer)
   }
   viewer.data().clear();
   viewer.data().set_mesh(V,F);
+  Eigen::MatrixXd Colors;
+
+  Eigen::VectorXd Z = V.col(1);
+  igl::jet(Z, true, Colors);
+  int i = V.rows();
+  for (int i = V.rows(); i > V.rows()-9; i--) {
+	  Colors.row(i) = RowVector3d(0.45, 0.98, 0);
+  }
+  mgpViewer.data().set_colors(Colors);
+  //mgpViewer.data().set_colors(ballColor);
   
   return false;
 }
@@ -147,7 +157,10 @@ int main(int argc, char *argv[])
   scene.updateScene(0.0, CRCoeff, V , F);
   
   // Viewer Settings
+  
   mgpViewer.data().set_mesh(V,F);
+
+  
   mgpViewer.callback_pre_draw = &pre_draw;
   mgpViewer.callback_key_down = &key_down;
   mgpViewer.core.is_animating = false;
