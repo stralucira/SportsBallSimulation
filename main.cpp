@@ -9,6 +9,7 @@
 Eigen::MatrixXd V;
 Eigen::MatrixXi F;
 igl::opengl::glfw::Viewer mgpViewer;
+Eigen::MatrixXd Colors;
 
 float currTime = 0;
 
@@ -86,15 +87,22 @@ bool pre_draw(igl::opengl::glfw::Viewer &viewer)
   }
   viewer.data().clear();
   viewer.data().set_mesh(V,F);
-  Eigen::MatrixXd Colors;
+  
 
   Eigen::VectorXd Z = V.col(1);
+  Z.setOnes(); 
+  Colors(V.rows(), 3);
+  //Colors.setRandom();
+  //Colors.setConstant(0.8);
   igl::jet(Z, true, Colors);
-  int i = V.rows();
+
   for (int i = V.rows(); i > V.rows()-9; i--) {
 	  Colors.row(i) = RowVector3d(0.45, 0.98, 0);
   }
-  mgpViewer.data().set_colors(Colors);
+  for (int i = 0; i <= V.rows()-9; i++) {
+	  Colors.row(i) = RowVector3d(0.5, 0.2, 0.3);
+  }
+  viewer.data().set_colors(Colors);
   //mgpViewer.data().set_colors(ballColor);
   
   return false;
