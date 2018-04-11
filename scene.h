@@ -207,22 +207,30 @@ public:
 	//double Cdrag = 0.3642832 + 0.000002504919 * reynoldsNumber - 8.155993 * pow(10, -12) * reynoldsNumber * reynoldsNumber;
 
 	DRAG_COEFF = 0.5 * airDensity * Cdrag * M_PI * ballDiameter;
-	cout << "reynolds number: " << reynoldsNumber << endl;
-	cout << "velocity: " << comVelocity << endl;
-	cout << "drag: "<< Cdrag << endl;
+	//cout << "reynolds number: " << reynoldsNumber << endl;
+	//cout << "velocity: " << comVelocity << endl;
+	//cout << "drag: "<< Cdrag << endl;
 
 	RowVector3d netAcceleration;
+	RowVector3d liftAcceleration;
 
 	//cout << "angular velocity: " << angVelocity << endl;
 	if (!angVelocity.isZero(0)) {
 		RowVector3d liftNormal = angVelocity.cross(comVelocity);
 		liftNormal.normalize();
-		//cout << "Lift normal: " << liftNormal << endl;
+		cout << "Lift normal: " << liftNormal << endl;
 		double Sn = angVelocity.norm() * 10.0f * (1 / 2 * comVelocity.norm());
 		double liftCoefficient = 0.005098631 + 2.419804*Sn - 9.062741*Sn*Sn + 12.61261*Sn*Sn*Sn;
 		//double liftCoefficient = 0.02023377 + 1.484177*Sn - 1.79329*Sn*Sn;
 		double LIFT = 0.5f * airDensity * liftCoefficient * 10 * M_PI * comVelocity.norm();
-		netAcceleration = gravityVec + (DRAG_COEFF * comVelocity * (1 / mass)) + (LIFT* (1/mass) * liftNormal);
+
+		cout << "Lift force: " << LIFT << endl;
+
+		liftAcceleration = (LIFT* (1 / mass) * liftNormal);
+
+		cout << "Lift acceleration: " << liftAcceleration << " , mass: " << mass << endl;
+
+		netAcceleration = gravityVec + (DRAG_COEFF * comVelocity * (1 / mass)) + liftAcceleration;
 	}
 	else {
 		netAcceleration = gravityVec + (DRAG_COEFF * comVelocity * (1 / mass));
@@ -459,8 +467,10 @@ public:
       sceneFileHandle>>OFFFileName>>density>>isFixed>>COM(0)>>COM(1)>>COM(2)>>orientation(0)>>orientation(1)>>orientation(2)>>orientation(3);
       orientation.normalize();
       igl::readOFF(path+std::string("/")+OFFFileName,objV,objT);
-	  objV = objV * 5.0;
-      addRigidObject(objV,objT,density, isFixed, COM, orientation);
+	  
+	  if (i == 0) { objV = objV * 5.0; }
+      
+	  addRigidObject(objV,objT,density, isFixed, COM, orientation);
       cout << "COM: " << COM <<endl;
       cout << "orientation: " << orientation <<endl;
     }
